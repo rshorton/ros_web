@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+
+<script src="EaselJS-master/lib/easeljs.js"></script>
+<script src="EventEmitter2-master/lib/eventemitter2.js"></script>
+<script src="roslibjs-develop/build/roslib.js"></script>
+<script src="ros2djs-develop/build/ros2d.js"></script>
+<script src="nav2djs-develop/build/nav2d.js"></script>
+
+<script>
+  /**
+   * Setup all visualization elements when the page is loaded.
+   */
+  var nav = null;
+  var diagListener = null;
+  var chargeListener = null;
+
+// wlan
+  var robot_ip = "192.168.86.117";
+// mlan
+//  var robot_ip = "192.168.86.35";
+// wlan1
+//  var robot_ip = "192.168.86.116";
+
+  function init() {
+    // Connect to ROS.
+    var ros = new ROSLIB.Ros({
+      url : 'ws://' + robot_ip + ':9090'
+    });
+
+    // Create the main viewer.
+    var viewer = new ROS2D.Viewer({
+      divID : 'nav',
+      width : 576,
+      height :753
+    });
+
+    // Setup the nav client.
+    nav = NAV2D.OccupancyGridClientNav({
+      ros : ros,
+      rootObject : viewer.scene,
+      viewer : viewer,
+      serverName : '/move_base',
+      withOrientation : true,
+      image: 'create2.png'
+    });
+
+    var updateDiag = function(diag) {
+    };
+
+    diagListener = new ROSLIB.Topic({
+      ros: ros,
+      name: '/diagnostics',
+      messageType: 'diagnostic_msgs/DiagnosticArray',
+      throttle_rate: 1000
+    });
+    diagListener.subscribe(function(diag) {
+      updateDiag(diag);
+    });
+
+    var updateCharge = function(charge) {
+      var el = document.getElementById("charge");
+      el.innerHTML = "" + (charge.data*100).toFixed(2) + "%";
+    };
+
+    chargeListener = new ROSLIB.Topic({
+      ros: ros,
+      name: '/battery/charge_ratio',
+      messageType: 'std_msgs/Float32',
+      throttle_rate: 1000
+    });
+    chargeListener.subscribe(function(charge) {
+      updateCharge(charge);
+    });
+
+  }
+  function startNav() {
+      nav.navigator.startGoal();
+  }
+
+  function cancelNav() {
+      nav.navigator.cancelGoal();
+  }
+
+  function setInitialPose() {
+      nav.navigator.setInitialPose();
+  }
+
+  var ballpick_cnt = 0;
+  function startBallPick() {
+      nav.navigator.startGoalBallPicker('test_' + ballpick_cnt);
+//      nav.navigator.startGoalBallPicker(-3);
+  }
+
+</script>
+<style>
+* {
+  box-sizing: border-box;
+}
+
+/* Create two unequal columns that floats next to each other */
+.column {
+  float: left;
+  padding: 10px;
+}
+
+.left {
+  width: 600px;
+//  width: 50%;
+}
+
+.right {
+  width: 500px;
+//  width: 50%;
+}
+
+#charge_line
+{
+    display:inline;
+}
+</style>
+</head>
+
+<body onload="init()">
+  <div class="row">
+  <div class="column left" style="background-color:#aaa;">
+    <div id="nav"></div>
+  </div>
+  <div class="column right" style="background-color:#bbb;">
+    <div id="charge_line">Battery: <span id="charge"></span></div>
+    <br>
+    <button onclick="setInitialPose()">Set Initial Pose</button>
+    <br>
+    <button onclick="startNav()">Start Nav</button>
+    <br>
+    <button onclick="cancelNav()">Cancel Nav</button>
+    <br>
+    <button onclick="startBallPick()">Start Ball Picker</button>
+    <br>
+    <img src="http://127.0.0.1:8080/stream?topic=/color/image"></img>
+    <div id="goal_position"></div>
+    <div id="object_info"></div>
+    <div id="object_memory_info"></div>
+  </div>
+</body>
+</html>
