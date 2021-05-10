@@ -39,6 +39,8 @@ NAV2D.Navigator = function(options) {
   this.objectMarkers = [];
   this.objectMemoryMarkers = [];
 
+  this.searchPathPoseMarkers = [];
+
   this.planPath = null;
   this.planLocalPath = null;
 
@@ -86,9 +88,8 @@ NAV2D.Navigator = function(options) {
     console.log('goalMarker: x,y: ' + that.goalMarker.x + '  ' + that.goalMarker.y +
       ', goal: x,y: ' + pose.position.x + '  ' + pose.position.y);
 
-    var str = 'Position: x,y: ' + pose.position.x.toFixed(2) + '  ' + pose.position.y.toFixed(2) + '</br>';
+    var str = 'Goal Position: x,y,yaw: ' + pose.position.x.toFixed(2) + '  ' + pose.position.y.toFixed(2) + '  ' + that.goalMarker.rotation.toFixed(2) + '</br>';
     document.getElementById('goal_position').innerHTML = str;
-
   };
 
   var hideGoalMarker = function() {
@@ -187,6 +188,9 @@ NAV2D.Navigator = function(options) {
     // Set visible
     robotMarker.visible = true;
     console.log('updateRobotPosition: x,y: ' + robotMarker.x + '  ' + robotMarker.y);
+
+    var str = 'Current Position: x,y,yaw: ' + robotMarker.x.toFixed(2) + '  ' + robotMarker.y.toFixed(2) + '  ' + robotMarker.rotation.toFixed(2) + '</br>';
+    document.getElementById('cur_position').innerHTML = str;
   };
 
   ///////////////////////////////////////////////////
@@ -402,7 +406,7 @@ NAV2D.Navigator = function(options) {
     }
   };
 
-  // setup a listener for the robot pose
+  // setup a listener for the robot nav path
   var pathListener = new ROSLIB.Topic({
     ros: ros,
     name: '/move_base/NavfnROS/plan',
@@ -413,6 +417,52 @@ NAV2D.Navigator = function(options) {
   pathListener.subscribe(function(plan) {
     updatePath(plan);
   });
+
+  ///////////////////////////////////////////////////
+  // create a marker for the goal
+  var showSearchPathMarker = function(pose) {
+    var marker = new ROS2D.CircleShape({
+         size: 3,
+         fillColor: createjs.Graphics.getRGB(0, 0, 255)
+    });
+    that.searchPathPoseMarkers.push(marker);
+    that.rootObject.addChild(marker);
+
+    marker.x = pose.pose.position.x;
+    marker.y = -pose.pose.position.y;
+    marker.scaleX = 1.0 / stage.scaleX;
+    marker.scaleY = 1.0 / stage.scaleX;
+    marker.visible = true;
+  };
+
+  var deleteAllSearchPathMarkers = function() {
+    for (var i = 0; i < that.searchPathPoseMarkers.length; i++) {
+      that.rootObject.removeChild(that.searchPathPoseMarkers[i]);
+      that.searchPathPoseMarkers[i] = null;
+    }
+  };
+
+  var showSearchPoints = function(path) {
+    console.log('show search path poses');
+    for (var i = 0; i < path.poses.length; i++) {
+      showSearchPathMarker(path.poses[i]);
+    }
+  };
+
+  // setup a listener for the robot search path
+  var searchPathListener = new ROSLIB.Topic({
+    ros: ros,
+    name: '/robot_seek_game/search_path',
+    messageType: 'nav_msgs/Path',
+    throttle_rate: 100,
+    use_transient_local: false
+  });
+  searchPathListener.subscribe(function(path) {
+    deleteAllSearchPathMarkers();
+    showSearchPoints(path);
+  });
+
+  /////////////////////////////////////////////////////
 
   if(tfClient !== null) {
     tfClient.subscribe(robot_pose, function(tf) {
