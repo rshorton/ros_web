@@ -26,16 +26,23 @@ function Goal(options) {
   // Used to create random IDs
   var date = new Date();
 
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
   // Create a random ID
   this.goalID = 'goal_' + Math.random() + '_' + date.getTime();
   // Fill in the goal message
   this.goalMessage = new Message({
     goal_id : {
-      stamp : {
-        secs : 0,
-        nsecs : 0
-      },
-      id : this.goalID
+        uuid: uuidv4(),
+//      stamp : {
+//        secs : 0,
+//        nsecs : 0
+//      },
+//      id : this.goalID
     },
     goal : this.goalMessage
   });

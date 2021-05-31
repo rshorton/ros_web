@@ -26,8 +26,8 @@ NAV2D.Navigator = function(options) {
   var ros = options.ros;
   var tfClient = options.tfClient || null;
   var robot_pose = options.robot_pose || '/robot_pose';
-  var serverName = options.serverName || '/move_base';
-  var actionName = options.actionName || 'move_base_msgs/MoveBaseAction';
+  var serverName = options.serverName || '/navigate_to_pose';
+  var actionName = options.actionName || 'nav2_msgs/NavigateToPose';
   var withOrientation = options.withOrientation || false;
   var use_image = options.image;
   this.rootObject = options.rootObject || new createjs.Container();
@@ -106,9 +106,10 @@ NAV2D.Navigator = function(options) {
     var goal = new ROSLIB.Goal({
       actionClient : actionClient,
       goalMessage : {
-        target_pose : {
+        pose : {
           header : {
-            frame_id : 'map'
+            frame_id : 'map',
+            stamp: Date.now(),
           },
           pose : pose
         }
@@ -187,7 +188,7 @@ NAV2D.Navigator = function(options) {
     robotMarker.rotation = stage.rosQuaternionToGlobalTheta(orientation);
     // Set visible
     robotMarker.visible = true;
-    console.log('updateRobotPosition: x,y: ' + robotMarker.x + '  ' + robotMarker.y);
+    //console.log('updateRobotPosition: x,y: ' + robotMarker.x + '  ' + robotMarker.y);
 
     var str = 'Current Position: x,y,yaw: ' + robotMarker.x.toFixed(2) + '  ' + robotMarker.y.toFixed(2) + '  ' + robotMarker.rotation.toFixed(2) + '</br>';
     document.getElementById('cur_position').innerHTML = str;
@@ -420,11 +421,18 @@ NAV2D.Navigator = function(options) {
 
   ///////////////////////////////////////////////////
   // create a marker for the goal
-  var showSearchPathMarker = function(pose) {
-    var marker = new ROS2D.CircleShape({
-         size: 3,
-         fillColor: createjs.Graphics.getRGB(0, 0, 255)
+  var showSearchPathMarker = function(pose, index) {
+//    var marker = new ROS2D.CircleShape({
+//         size: 3,
+//         fillColor: createjs.Graphics.getRGB(0, 0, 255)
+//    });
+
+    var marker = new ROS2D.TextShape({
+         text: index,
+         font: '30px Arial',
+         fillColor: createjs.Graphics.getRGB(0, 128, 0)
     });
+
     that.searchPathPoseMarkers.push(marker);
     that.rootObject.addChild(marker);
 
@@ -445,7 +453,7 @@ NAV2D.Navigator = function(options) {
   var showSearchPoints = function(path) {
     console.log('show search path poses');
     for (var i = 0; i < path.poses.length; i++) {
-      showSearchPathMarker(path.poses[i]);
+      showSearchPathMarker(path.poses[i], i + 1);
     }
   };
 
@@ -461,6 +469,65 @@ NAV2D.Navigator = function(options) {
     deleteAllSearchPathMarkers();
     showSearchPoints(path);
   });
+
+
+  /////////////////////////////////////////////////////
+
+  // marker for person being followed
+  var followMarker = null;
+  if (use_image && ROS2D.hasOwnProperty('PersonImage')) {
+    followMarker = new ROS2D.NavigationImage({
+      size: 2.5,
+      image: use_image,
+      pulse: true
+    });
+  } else {
+    followMarker = new ROS2D.CircleShape({
+         size: 12,
+         fillColor: createjs.Graphics.getRGB(0, 0, 255)
+    });
+  }
+
+  // wait for a pose to come in first
+  followMarker.visible = false;
+  this.rootObject.addChild(followMarker);
+  var initFollowMarkerScaleSet = false;
+
+  var updateFollowMarker = function(pose, orientation) {
+    // update the robots position on the map
+    followMarker.x = pose.x;
+    followMarker.y = -pose.y;
+    if (!initFollowMarkerScaleSet) {
+      followMarker.scaleX = 1.0 / stage.scaleX;
+      followMarker.scaleY = 1.0 / stage.scaleX;
+//      followMarker.scaleY = 1.0 / stage.scaleY;
+      initFollowMarkerScaleSet = true;
+    }
+    // change the angle
+    followMarker.rotation = stage.rosQuaternionToGlobalTheta(orientation);
+    // Set visible
+    followMarker.visible = true;
+    //console.log('followMarkerPosition: x,y: ' + followMarker.x + '  ' + followMarker.y);
+
+    var str = 'Current follow position: x,y,yaw: ' +
+               followMarker.x.toFixed(2) + '  ' +
+               followMarker.y.toFixed(2) + '  ' +
+               followMarker.rotation.toFixed(2) + '</br>';
+    document.getElementById('follow_marker_position').innerHTML = str;
+  };
+
+
+  // setup a listener for the goal update topic used when follow point mode is used
+  var followGoalUpdateListener = new ROSLIB.Topic({
+      ros: ros,
+      name: 'goal_update',
+      messageType: 'geometry_msgs/PoseStamped',
+      throttle_rate: 100,
+      use_transient_local: false
+    });
+  followGoalUpdateListener.subscribe(function(pose) {
+      updateFollowMarker(pose.pose.position, pose.pose.orientation);
+    });
 
   /////////////////////////////////////////////////////
 
