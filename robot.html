@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="bootstrap-3.4.1-dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-3.4.1-dist/css/bootstrap-theme.min.css">
+  <link rel="stylesheet" href="bootstrap-3.4.1-dist/js/bootstrap.min.js">
+
+  <script src="EaselJS-master/lib/easeljs.js"></script>
+  <script src="EventEmitter2-master/lib/eventemitter2.js"></script>
+  <script src="roslibjs-develop/build/roslib.js"></script>
+  <script src="ros2djs-develop/build/ros2d.js"></script>
+  <script src="nav2djs-develop/build/nav2d.js"></script>
+
+<script>
+  /**
+   * Setup all visualization elements when the page is loaded.
+   */
+  var nav = null;
+  var diagListener = null;
+  var chargeListener = null;
+
+  var robot_ip = "rpiB";
+
+  function init() {
+    // Connect to ROS.
+    var ros = new ROSLIB.Ros({
+      url : 'ws://' + robot_ip + ':9090'
+    });
+
+    // Set the URL for the video window
+    document.getElementById("video").src = "http://" + window.location.host + ":8080/stream?topic=/color/image";
+
+    // Create the main viewer.
+    var viewer = new ROS2D.Viewer({
+      divID : 'nav',
+      width : 384,
+      height :502
+    });
+
+    // Setup the nav client.
+    nav = NAV2D.OccupancyGridClientNav({
+      ros : ros,
+      rootObject : viewer.scene,
+      viewer : viewer,
+      serverName : '/navigate_to_pose',
+      withOrientation : true,
+      image: 'create2.png'
+    });
+
+    var updateDiag = function(diag) {
+    };
+
+    diagListener = new ROSLIB.Topic({
+      ros: ros,
+      name: '/diagnostics',
+      messageType: 'diagnostic_msgs/DiagnosticArray',
+      throttle_rate: 1000
+    });
+    diagListener.subscribe(function(diag) {
+      updateDiag(diag);
+    });
+
+    var updateCharge = function(charge) {
+      var el = document.getElementById("charge");
+      el.innerHTML = "" + (charge.data*100).toFixed(2) + "%";
+    };
+
+    chargeListener = new ROSLIB.Topic({
+      ros: ros,
+      name: '/battery/charge_ratio',
+      messageType: 'std_msgs/Float32',
+      throttle_rate: 1000
+    });
+    chargeListener.subscribe(function(charge) {
+      updateCharge(charge);
+    });
+
+  }
+  function startNav() {
+      nav.navigator.startGoal();
+  }
+
+  function cancelNav() {
+      nav.navigator.cancelGoal();
+  }
+
+  function setInitialPose() {
+      nav.navigator.setInitialPose();
+  }
+
+  var ballpick_cnt = 0;
+  function startBallPick() {
+      nav.navigator.startGoalBallPicker('test_' + ballpick_cnt);
+  }
+
+</script>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+#video
+{
+  width: 576px;
+  height: 324px:
+}
+
+#charge_line
+{
+    display:inline;
+}
+</style>
+</head>
+
+<body onload="init()">
+  <br>
+  <div class="container" role="main">
+    <div class="row">
+
+      <div class="col-md-5">
+        <div class="panel panel-default">
+          <div class="panel-heading">
+            <h3 class="panel-title">Navigation Map</h3>
+          </div>
+          <div class="panel-body">
+            <div class="text-center">
+              <div id="nav">
+            </div>
+            </div>
+            <div class="text-center">
+              <button class="btn btn-primary" type="button" onclick="setInitialPose()">Set Initial Pose</button>
+              <button class="btn btn-primary" type="button" onclick="startNav()">Start Nav</button>
+              <button class="btn btn-primary" type="button" onclick="cancelNav()">Cancel Nav</button>
+            </div>
+            <div>
+              <hr>
+              <div id="cur_position"></div>
+              <div id="goal_position"></div>
+              <div id="follow_marker_position"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-7">
+        <row>
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <h3 class="panel-title">Status</h3>
+            </div>
+            <div class="panel-body">
+                <p>
+                  Roomba Battery: <span id="charge"></span>
+                </p>
+            </div>
+          </div>
+        </row>
+        <row>
+          <div class="panel panel-default">
+            <div class="panel-heading">
+              <h3 class="panel-title">Robot Camera</h3>
+            </div>
+            <div class="panel-body">
+              <div class="text-center">
+                <img id="video"></img>
+              </div>
+            </div>
+          </div>
+       </row>
+    </div>
+  </div>
+</body>
+</html>
