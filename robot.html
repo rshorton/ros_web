@@ -24,7 +24,8 @@
   var diagListener = null;
   var chargeListener = null;
 
-  var robot_ip = "rpiB";
+  //var robot_ip = "rpiB";
+  var robot_ip = "192.168.86.116";
 
   function init() {
     // Connect to ROS.
@@ -33,7 +34,8 @@
     });
 
     // Set the URL for the video window
-    document.getElementById("video").src = "http://" + window.location.host + ":8080/stream?topic=/color/image";
+    //document.getElementById("video").src = "http://" + window.location.host + ":8080/stream?topic=/color/image";
+    document.getElementById("video").src = "http://192.168.86.119:8080/stream?topic=/color/image";
 
     // Create the main viewer.
     var viewer = new ROS2D.Viewer({

@@ -190,7 +190,7 @@ NAV2D.Navigator = function(options) {
     robotMarker.visible = true;
     //console.log('updateRobotPosition: x,y: ' + robotMarker.x + '  ' + robotMarker.y);
 
-    var str = 'Current Position: x,y,yaw: ' + robotMarker.x.toFixed(2) + '  ' + robotMarker.y.toFixed(2) + '  ' + robotMarker.rotation.toFixed(2) + '</br>';
+    var str = 'Current Position: x,y,yaw: ' + robotMarker.x.toFixed(2) + '  ' + -1*robotMarker.y.toFixed(2) + '  ' + robotMarker.rotation.toFixed(2) + '</br>';
     document.getElementById('cur_position').innerHTML = str;
   };
 
@@ -422,14 +422,14 @@ NAV2D.Navigator = function(options) {
   ///////////////////////////////////////////////////
   // create a marker for the goal
   var showSearchPathMarker = function(pose, index) {
-//    var marker = new ROS2D.CircleShape({
-//         size: 3,
-//         fillColor: createjs.Graphics.getRGB(0, 0, 255)
-//    });
+    //var marker = new ROS2D.CircleShape({
+    //     size: 3,
+    //     fillColor: createjs.Graphics.getRGB(0, 0, 255)
+    //});
 
     var marker = new ROS2D.TextShape({
          text: index,
-         font: '30px Arial',
+         font: '20px Arial',
          fillColor: createjs.Graphics.getRGB(0, 128, 0)
     });
 
@@ -511,7 +511,7 @@ NAV2D.Navigator = function(options) {
 
     var str = 'Current follow position: x,y,yaw: ' +
                followMarker.x.toFixed(2) + '  ' +
-               followMarker.y.toFixed(2) + '  ' +
+               -1*followMarker.y.toFixed(2) + '  ' +
                followMarker.rotation.toFixed(2) + '</br>';
     document.getElementById('follow_marker_position').innerHTML = str;
   };

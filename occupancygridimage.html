@@ -17,7 +17,6 @@
   var diagListener = null;
   var chargeListener = null;
 
-// wlan
   var robot_ip = "rpiB";
 
   function init() {
@@ -29,8 +28,8 @@
     // Create the main viewer.
     var viewer = new ROS2D.Viewer({
       divID : 'nav',
-      width : 576,
-      height :753
+      width : 384,
+      height :502
     });
 
     // Setup the nav client.
@@ -87,7 +86,6 @@
   var ballpick_cnt = 0;
   function startBallPick() {
       nav.navigator.startGoalBallPicker('test_' + ballpick_cnt);
-//      nav.navigator.startGoalBallPicker(-3);
   }
 
 </script>
@@ -103,13 +101,11 @@
 }
 
 .left {
-  width: 600px;
-//  width: 50%;
+  width: 404px;
 }
 
 .right {
   width: 500px;
-//  width: 50%;
 }
 
 #charge_line
