@@ -475,6 +475,7 @@ NAV2D.Navigator = function(options) {
 
   // marker for person being followed
   var followMarker = null;
+  var followMarkerTimer = null;
   if (use_image && ROS2D.hasOwnProperty('PersonImage')) {
     followMarker = new ROS2D.NavigationImage({
       size: 2.5,
@@ -503,29 +504,37 @@ NAV2D.Navigator = function(options) {
 //      followMarker.scaleY = 1.0 / stage.scaleY;
       initFollowMarkerScaleSet = true;
     }
+    if (followMarkerTimer) {
+      clearTimeout(followMarkerTimer);
+    }
+    followMarkerTimer = setTimeout(function() {
+      followMarker.visible = false;
+      }, 3000);
+
     // change the angle
     followMarker.rotation = stage.rosQuaternionToGlobalTheta(orientation);
     // Set visible
     followMarker.visible = true;
     //console.log('followMarkerPosition: x,y: ' + followMarker.x + '  ' + followMarker.y);
 
-    var str = 'Current follow position: x,y,yaw: ' +
+    var str = 'Person location: x,y: ' +
                followMarker.x.toFixed(2) + '  ' +
                -1*followMarker.y.toFixed(2) + '  ' +
-               followMarker.rotation.toFixed(2) + '</br>';
+               '</br>';
     document.getElementById('follow_marker_position').innerHTML = str;
   };
 
 
-  // setup a listener for the goal update topic used when follow point mode is used
-  var followGoalUpdateListener = new ROSLIB.Topic({
+  // setup a listener for the topic that specifies where the tracked object is
+  // on the map
+  var trackedObjectLocationListener = new ROSLIB.Topic({
       ros: ros,
-      name: 'goal_update',
+      name: 'tracked_object_map_position',
       messageType: 'geometry_msgs/PoseStamped',
       throttle_rate: 100,
       use_transient_local: false
     });
-  followGoalUpdateListener.subscribe(function(pose) {
+  trackedObjectLocationListener.subscribe(function(pose) {
       updateFollowMarker(pose.pose.position, pose.pose.orientation);
     });
 
