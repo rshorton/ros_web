@@ -34,27 +34,75 @@
   var gauge_control_i;
   var gauge_drive_v;
 
+  var low_voltage_error_thresh = 17.3;
+  var low_voltage_warn_thresh = 18.0;
+  var norm_voltage_max = 20.0;
+
+  https://stackoverflow.com/questions/879152/how-do-i-make-javascript-beep
+  var beep = (function () {
+    var ctxClass = window.audioContext ||window.AudioContext || window.AudioContext || window.webkitAudioContext
+    var ctx = new ctxClass();
+    return function (duration, type, finishedCallback) {
+        duration = +duration;
+
+        // Only 0-4 are valid types.
+        type = (type % 5) || 0;
+
+        if (typeof finishedCallback != "function") {
+            finishedCallback = function () {};
+        }
+
+        var osc = ctx.createOscillator();
+        var gainNode = ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.value = 500;
+        gainNode.gain.value = 0.3;
+
+        osc.connect(ctx.destination);
+        if (osc.start) osc.start(); // new browsers
+
+        setTimeout(function () {
+            if (osc.stop) osc.stop(); // new browsers
+            finishedCallback();
+        }, duration);
+      };
+  })();
+
   function init() {
     // Connect to ROS.
     var ros = new ROSLIB.Ros({
       url : 'ws://' + robot_ip + ':9090'
     });
+ 
+    var lowVoltageWarning = function() {
+      if ((control_bat_v > 0 && control_bat_v < low_voltage_warn_thresh) ||
+        (drive_bat_v > 0 && drive_bat_v < low_voltage_warn_thresh)) {
+        beep(100, 2, function (){});
+      }         
+    };
   
     var showFloatField = function(id, value, units) {
       var el = document.getElementById(id);
       el.innerHTML = "" + value.toFixed(2) + " " + units;
     };
 
-    var updateControlVoltage = function(value) {
-      control_bat_v = value.data;
-      showFloatField("control_voltage", value.data , "V");
-      gauge_control_v.set(control_bat_v);
+    var updateControlPower = function() {
+      showFloatField("control_power", control_bat_v*control_bat_i , "W");
     };
 
+    var updateControlVoltage = function(value) {
+      control_bat_v = value.data;
+      showFloatField("control_voltage", value.data, "V");
+      gauge_control_v.set(control_bat_v);
+      updateControlPower();
+    };
+   
     var updateControlCurrent = function(value) {
       control_bat_i = value.data;
       showFloatField("control_current", value.data, "A");
       gauge_control_i.set(control_bat_i);
+      updateControlPower();
     };
 
     var updateDriveVoltage = function(value) {
@@ -77,44 +125,45 @@
 
     var v_staticLabels = {
       font: "15px sans-serif",  // Specifies font
-      labels: [16, 17, 20],  // Print labels at these values
+      labels: [12, 17, 18, 20],  // Print labels at these values
       color: "#000000",  // Optional: Label text color
-      fractionDigits: 1  // Optional: Numerical precision. 0=round off.
+      fractionDigits: 0  // Optional: Numerical precision. 0=round off.
     };
 
     var a_staticLabels = {
       font: "15px sans-serif",  // Specifies font
       labels: [1, 2, 3, 4],  // Print labels at these values
       color: "#000000",  // Optional: Label text color
-      fractionDigits: 1  // Optional: Numerical precision. 0=round off.
+      fractionDigits: 0  // Optional: Numerical precision. 0=round off.
     };
 
     var v_zones =  [
-      {strokeStyle: "rgb(255,0,0)", min: 10, max: 15.9, height: 1.4},
-      {strokeStyle: "rgb(255,255,0)", min: 16.0, max: 17, height: 1.4},
-      {strokeStyle: "rgb(0,255,0)", min: 17.0, max: 20, height: 1.4}
+      {strokeStyle: "rgb(255,0,0)", min: 12, max: (low_voltage_error_thresh - 0.1), height: 1.4},
+      {strokeStyle: "rgb(255,255,0)", min: low_voltage_error_thresh, max: (low_voltage_warn_thresh - 0.1), height: 1.4},
+      {strokeStyle: "rgb(0,255,0)", min: low_voltage_warn_thresh, max: norm_voltage_max, height: 1.4}
     ];      
 
     var a_zones =  [
       {strokeStyle: "rgb(192, 192, 192)", min: 0, max: 5, height: 1.4}
     ];      
 
-    gauge_control_v = create_gauge("gauge_control_voltage", 10, 20, v_staticLabels, v_zones);
+    gauge_control_v = create_gauge("gauge_control_voltage", 12, norm_voltage_max, v_staticLabels, v_zones);
     gauge_control_i = create_gauge("gauge_control_current", 0, 5, a_staticLabels, a_zones);
-    gauge_drive_v = create_gauge("gauge_drive_voltage", 10, 20, v_staticLabels, v_zones);
+    gauge_drive_v = create_gauge("gauge_drive_voltage", 12, norm_voltage_max, v_staticLabels, v_zones);
 
     createFloatTopicListener('/battery/control/voltage', updateControlVoltage);
     createFloatTopicListener('/battery/control/current', updateControlCurrent);
     createFloatTopicListener('/battery/drive/voltage', updateDriveVoltage);
 
     //setTimeout(test_gauge, 2000);
+    setInterval(lowVoltageWarning, 5000);
   }
 
   function create_gauge(id, min, max, labels, zones) {
     var opts = {
       angle: 0.05, // The span of the gauge arc
-      lineWidth: 0.44, // The line thickness
-      radiusScale: 1, // Relative radius
+      lineWidth: 0.3, // The line thickness
+      radiusScale: 0.75, // Relative radius
       pointer: {
         length: 0.6, // // Relative to gauge radius
         strokeWidth: 0.035, // The thickness
@@ -151,7 +200,16 @@
 }
 
 .gauge-div {
-  display: inline-block;
+  /*display: inline-block;*/
+  font-size: 1.5em;
+}
+
+.battery-field {
+  font-weight: bold;
+}
+
+.gauge-canvas {
+  max-height: 100px;
 }
 
 </style>
@@ -162,7 +220,7 @@
   <div class="container" role="main">
     <div class="row">
 
-      <div class="col-md-7">
+      <div class="col-md-12">
         <row>
           <div class="panel panel-default">
             <div class="panel-heading">
@@ -171,13 +229,18 @@
             <div class="panel-body">
               <div class="gauge-div">
                 Voltage
-                <span id="control_voltage"></span><br>
-                <canvas id="gauge_control_voltage"></canvas><br>
+                <span id="control_voltage" class="battery-field"></span><br>
+                <canvas id="gauge_control_voltage" class="gauge-canvas"></canvas><br>
               </div>
               <div class="gauge-div">
                 Current
-                <span id="control_current"></span><br>
-                <canvas id="gauge_control_current"></canvas><br>
+                <span id="control_current" class="battery-field"></span><br>
+                <canvas id="gauge_control_current" class="gauge-canvas"></canvas><br>
+              </div>
+              <br>
+              <div class="gauge-div">
+                Power
+                <span id="control_power" class="battery-field"></span>
               </div>
             </div>
           </div>
@@ -189,9 +252,11 @@
               <h3 class="panel-title">Drive Battery</h3>
             </div>
             <div class="panel-body">
-              Voltage
-              <span id="drive_voltage"></span><br>
-              <canvas id="gauge_drive_voltage"></canvas><br>
+              <div class="gauge-div">
+                Voltage
+                <span id="drive_voltage" class="battery-field"></span><br>
+                <canvas id="gauge_drive_voltage" class="gauge-canvas"></canvas><br>
+              </div>                
             </div>
           </div>
         </row>
