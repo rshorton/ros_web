@@ -6,34 +6,24 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <link rel="stylesheet" href="bootstrap-3.4.1-dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="bootstrap-3.4.1-dist/css/bootstrap-theme.min.css">
-  <link rel="stylesheet" href="bootstrap-3.4.1-dist/js/bootstrap.min.js">
+  <link rel="stylesheet" href="bootstrap-5.3.0-alpha1-dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="bootstrap-5.3.0-alpha1-dist/css/bootstrap-grid.min.css">
+  <script src="bootstrap-5.3.0-alpha1-dist/js/bootstrap.bundle.min.js"></script>
 
   <script src="EaselJS-master/lib/easeljs.js"></script>
   <script src="EventEmitter2-master/lib/eventemitter2.js"></script>
   <script src="roslibjs-develop/build/roslib.js"></script>
   <script src="ros2djs-develop/build/ros2d.js"></script>
-  <script src="nav2djs-develop/build/nav2d.js"></script>
-
-  <script src="https://bernii.github.io/gauge.js/dist/gauge.min.js"></script>
 
 <script>
-  /**
-   * Setup all visualization elements when the page is loaded.
-   */
-  var nav = null;
   
-  var robot_ip = "192.168.86.123";
+  var robot_ip = location.hostname;
+  //var robot_ip = "192.168.86.139";
 
   var control_bat_v = 0;
   var control_bat_i = 0;
   var drive_bat_v = 0;
   
-  var gauge_control_v;
-  var gauge_control_i;
-  var gauge_drive_v;
-
   var low_voltage_error_thresh = 17.3;
   var low_voltage_warn_thresh = 18.0;
   var norm_voltage_max = 20.0;
@@ -75,40 +65,58 @@
       url : 'ws://' + robot_ip + ':9090'
     });
  
+    var shutdown_topic = new ROSLIB.Topic({
+      ros : ros,
+      name : '/shutdown_robot',
+      messageType : 'std_msgs/Bool'
+    });
+
     var lowVoltageWarning = function() {
       if ((control_bat_v > 0 && control_bat_v < low_voltage_warn_thresh) ||
         (drive_bat_v > 0 && drive_bat_v < low_voltage_warn_thresh)) {
         beep(100, 2, function (){});
       }         
     };
-  
-    var showFloatField = function(id, value, units) {
-      var el = document.getElementById(id);
-      el.innerHTML = "" + value.toFixed(2) + " " + units;
-    };
 
-    var updateControlPower = function() {
-      showFloatField("control_power", control_bat_v*control_bat_i , "W");
-    };
+    var showBatteryStatus = function(id, v, i) {
+      var str = v.toFixed(2) + "V";
+      if (i > 0) {
+        str += ", " + i.toFixed(2) + "A, " + (v*i).toFixed(2) + "W";
+      }
+      document.getElementById(id).innerHTML = str;
+
+      var badge = document.getElementById(id + "_badge");
+      if (v <= low_voltage_error_thresh) {
+        badge.classList.remove("text-bg-warning");
+        badge.classList.remove("text-bg-success");
+        badge.classList.add("text-bg-danger");
+        badge.innerHTML = "Very Low";
+      } else if (v <= low_voltage_warn_thresh) {
+        badge.classList.remove("text-bg-danger");
+        badge.classList.remove("text-bg-success");
+        badge.classList.add("text-bg-warning");
+        badge.innerHTML = "Low";
+      } else {
+        badge.classList.remove("batext-bgdge-danger");
+        badge.classList.remove("text-bg-warning");
+        badge.classList.add("text-bg-success");
+        badge.innerHTML = "Ok";
+      }
+    }
 
     var updateControlVoltage = function(value) {
       control_bat_v = value.data;
-      showFloatField("control_voltage", value.data, "V");
-      gauge_control_v.set(control_bat_v);
-      updateControlPower();
+      showBatteryStatus("control_battery_status", control_bat_v, control_bat_i);
     };
    
     var updateControlCurrent = function(value) {
       control_bat_i = value.data;
-      showFloatField("control_current", value.data, "A");
-      gauge_control_i.set(control_bat_i);
-      updateControlPower();
+      showBatteryStatus("control_battery_status", control_bat_v, control_bat_i);
     };
 
     var updateDriveVoltage = function(value) {
       drive_bat_v = value.data;
-      showFloatField("drive_voltage", value.data, "V");
-      gauge_drive_v.set(drive_bat_v);
+      showBatteryStatus("drive_battery_status", drive_bat_v, -1);
     };
 
     var createFloatTopicListener = function(topic, updateCB) {
@@ -123,144 +131,85 @@
       });
     };
 
-    var v_staticLabels = {
-      font: "15px sans-serif",  // Specifies font
-      labels: [12, 17, 18, 20],  // Print labels at these values
-      color: "#000000",  // Optional: Label text color
-      fractionDigits: 0  // Optional: Numerical precision. 0=round off.
-    };
-
-    var a_staticLabels = {
-      font: "15px sans-serif",  // Specifies font
-      labels: [1, 2, 3, 4],  // Print labels at these values
-      color: "#000000",  // Optional: Label text color
-      fractionDigits: 0  // Optional: Numerical precision. 0=round off.
-    };
-
-    var v_zones =  [
-      {strokeStyle: "rgb(255,0,0)", min: 12, max: (low_voltage_error_thresh - 0.1), height: 1.4},
-      {strokeStyle: "rgb(255,255,0)", min: low_voltage_error_thresh, max: (low_voltage_warn_thresh - 0.1), height: 1.4},
-      {strokeStyle: "rgb(0,255,0)", min: low_voltage_warn_thresh, max: norm_voltage_max, height: 1.4}
-    ];      
-
-    var a_zones =  [
-      {strokeStyle: "rgb(192, 192, 192)", min: 0, max: 5, height: 1.4}
-    ];      
-
-    gauge_control_v = create_gauge("gauge_control_voltage", 12, norm_voltage_max, v_staticLabels, v_zones);
-    gauge_control_i = create_gauge("gauge_control_current", 0, 5, a_staticLabels, a_zones);
-    gauge_drive_v = create_gauge("gauge_drive_voltage", 12, norm_voltage_max, v_staticLabels, v_zones);
-
     createFloatTopicListener('/battery/control/voltage', updateControlVoltage);
     createFloatTopicListener('/battery/control/current', updateControlCurrent);
     createFloatTopicListener('/battery/drive/voltage', updateDriveVoltage);
 
-    //setTimeout(test_gauge, 2000);
-    setInterval(lowVoltageWarning, 5000);
-  }
-
-  function create_gauge(id, min, max, labels, zones) {
-    var opts = {
-      angle: 0.05, // The span of the gauge arc
-      lineWidth: 0.3, // The line thickness
-      radiusScale: 0.75, // Relative radius
-      pointer: {
-        length: 0.6, // // Relative to gauge radius
-        strokeWidth: 0.035, // The thickness
-        color: '#000000' // Fill color
-      },
-      limitMax: false,     // If false, max value increases automatically if value > maxValue
-      limitMin: false,     // If true, the min value of the gauge will be fixed
-      colorStart: '#6FADCF',   // Colors
-      colorStop: '#8FC0DA',    // just experiment with them
-      strokeColor: '#E0E0E0',  // to see which ones work best for you
-      generateGradient: true,
-      highDpiSupport: true,     // High resolution support
-      staticZones: zones,
-      staticLabels: labels
+    document.getElementById("shutdown").onclick = function() {
+      document.getElementById("shutdown_confirm_options").style.display = "block";
     };
-    var target = document.getElementById(id); // your canvas element
-    var gauge = new Gauge(target).setOptions(opts); // create sexy gauge!
-    gauge.maxValue = max; // set max gauge value
-    gauge.setMinValue(min);  // Prefer setter over gauge.minValue = 0
-    gauge.animationSpeed = 32; // set animation speed (32 is default value)
-    gauge.set(min); // set actual value
-    return gauge;
+
+    document.getElementById("shutdown_yes").onclick = function() {
+      var shutdown_msg = new ROSLIB.Message(
+        {
+          data : true
+        }
+      );
+      console.log("Publishing shutdown request");
+      shutdown_topic.publish(shutdown_msg);
+      //console.log("Would have requested shutdown");
+    };
+
+    document.getElementById("shutdown_no").onclick = function() {
+      document.getElementById("shutdown_confirm_options").style.display = "none";
+    };
+
+    // Periodically check for low voltage
+    setInterval(lowVoltageWarning, 5000);
   }
 
 </script>
 
 <style>
-* {
-  box-sizing: border-box;
-}
-
-.panel-body {
-  white-space: nowrap;
-}
-
-.gauge-div {
-  /*display: inline-block;*/
-  font-size: 1.5em;
-}
-
-.battery-field {
+.card-header {
   font-weight: bold;
 }
 
-.gauge-canvas {
-  max-height: 100px;
+#shutdown_confirm_options {
+  display: none;
 }
-
 </style>
 </head>
 
 <body onload="init()">
-  <br>
-  <div class="container" role="main">
-    <div class="row">
-
-      <div class="col-md-12">
-        <row>
-          <div class="panel panel-default">
-            <div class="panel-heading">
-              <h3 class="panel-title">Control Battery</h3>
-            </div>
-            <div class="panel-body">
-              <div class="gauge-div">
-                Voltage
-                <span id="control_voltage" class="battery-field"></span><br>
-                <canvas id="gauge_control_voltage" class="gauge-canvas"></canvas><br>
-              </div>
-              <div class="gauge-div">
-                Current
-                <span id="control_current" class="battery-field"></span><br>
-                <canvas id="gauge_control_current" class="gauge-canvas"></canvas><br>
-              </div>
-              <br>
-              <div class="gauge-div">
-                Power
-                <span id="control_power" class="battery-field"></span>
-              </div>
-            </div>
-          </div>
-        </row>
-
-        <row>
-          <div class="panel panel-default">
-            <div class="panel-heading">
-              <h3 class="panel-title">Drive Battery</h3>
-            </div>
-            <div class="panel-body">
-              <div class="gauge-div">
-                Voltage
-                <span id="drive_voltage" class="battery-field"></span><br>
-                <canvas id="gauge_drive_voltage" class="gauge-canvas"></canvas><br>
-              </div>                
-            </div>
-          </div>
-        </row>
+  <div class="card">
+    <div class="card-header">
+      <h4>Jeep Status</h4>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      Control Battery
+    </div>
+    <div class="card-body">
+      <span id="control_battery_status"></span>
+      <span id="control_battery_status_badge" class="badge badge-pill"></span>
+    </div>
+  </div>
+
+  <div class="card card-default">
+    <div class="card-header">
+      Drive Battery
+    </div>
+    <div class="card-body">
+      <span id="drive_battery_status"></span>
+      <span id="drive_battery_status_badge" class="badge badge-pill"></span>
+    </div>                
+  </div>
+
+  <div class="card card-default">
+    <div class="card-header">
+      Commands
+    </div>
+    <div class="card-body">
+      <button type="button" class="btn btn-primary" id="shutdown">Shutdown</button>
+      <div class="card-body" id="shutdown_confirm_options">
+        Are you sure?
+        <button type="button" class="btn btn-primary" id="shutdown_yes">Yes</button>
+        <button type="button" class="btn btn-primary" id="shutdown_no">No</button>
+      </div>
+    </div>                
   </div>
 </body>
 </html>
