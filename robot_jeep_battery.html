@@ -119,6 +119,10 @@
       showBatteryStatus("drive_battery_status", drive_bat_v, -1);
     };
 
+    var updateOdom = function(value) {
+      //console.log("Odom " + JSON.stringify(value));
+    };
+
     var createFloatTopicListener = function(topic, updateCB) {
       let listener = new ROSLIB.Topic({
         ros: ros,
@@ -127,13 +131,30 @@
         throttle_rate: 1000
       });
       listener.subscribe(function(value) {
+        pulse_update_dot();
         updateCB(value);
       });
     };
 
+    var createOdomTopicListener = function(updateCB) {
+      let listener = new ROSLIB.Topic({
+        ros: ros,
+        name: '/odom/unfiltered',
+        messageType: 'nav_msgs/msg/Odometry',
+        throttle_rate: 1000
+      });
+      listener.subscribe(function(value) {
+        pulse_update_dot();
+        updateCB(value);
+      });
+    };
+
+
     createFloatTopicListener('/battery/control/voltage', updateControlVoltage);
     createFloatTopicListener('/battery/control/current', updateControlCurrent);
     createFloatTopicListener('/battery/drive/voltage', updateDriveVoltage);
+
+    createOdomTopicListener(updateOdom);
 
     document.getElementById("shutdown").onclick = function() {
       document.getElementById("shutdown_confirm_options").style.display = "block";
@@ -158,6 +179,15 @@
     setInterval(lowVoltageWarning, 5000);
   }
 
+  var pulse_update_dot = function() {
+    var el = document.getElementById("update_dot");
+    el.classList.remove("opacity_fade");
+    el.classList.add("opacity_full");
+    setTimeout(function() {
+      el.classList.add("opacity_fade");
+    }, 50);      
+  };
+
 </script>
 
 <style>
@@ -168,16 +198,39 @@
 #shutdown_confirm_options {
   display: none;
 }
+
+.dot {
+    height:20px;
+    width:20px;
+    border-radius:50%;
+    background: green;
+    margin:0 3px;
+    opacity: 0;
+    float: right;
+}
+
+.opacity_full {
+  opacity: 1;
+}
+
+.opacity_fade {
+  transition:opacity 2s;
+  opacity: 0;
+}
+
+
 </style>
 </head>
 
 <body onload="init()">
+  <br>
   <div class="card">
-    <div class="card-header">
-      <h4>Jeep Status</h4>
+    <div class="card-header top-header">
+      <span class="h5">Jeep Status</span>
+      <div class="dot" id="update_dot"></div>
     </div>
   </div>
-
+  
   <div class="card">
     <div class="card-header">
       Control Battery
